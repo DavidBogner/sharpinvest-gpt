@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Anna – Virtual Analyst</title>
+</head>
+<body>
+  <h1>Welcome! My name is Anna.</h1>
+  <p>I’m the virtual analyst of Value Scale. How can I help you today?</p>
+  <textarea id="userInput" placeholder="Type your question..." rows="6" cols="60"></textarea><br/>
+  <button onclick="sendMessage()">Send</button>
+  <pre id="response" style="margin-top: 20px;"></pre>
+
+  <script>
+    async function sendMessage() {
+      const message = document.getElementById("userInput").value;
+      const responseField = document.getElementById("response");
+      responseField.textContent = "Thinking...";
+      const res = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message })
+      });
+      const data = await res.json();
+      responseField.textContent = data.reply;
+    }
+  </script>
+</body>
+</html>
