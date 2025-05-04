@@ -2,7 +2,7 @@
 // server.js
 import express from 'express';
 import cors from 'cors';
-import { Configuration, OpenAIApi } from 'openai';
+import OpenAI from 'openai';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -11,9 +11,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-const openai = new OpenAIApi(new Configuration({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-}));
+});
+
 
 const SYSTEM_PROMPT = `You are SharpMind GPT — an elite seed-stage investor and strategic advisor. You have invested in 100+ early-stage startups, with multiple billion-dollar exits. You specialize in assessing high-risk, high-reward opportunities with extreme clarity and discipline.
 
