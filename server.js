@@ -1,9 +1,8 @@
-
-// server.js
 import express from 'express';
 import cors from 'cors';
-import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import OpenAI from 'openai';
+
 dotenv.config();
 
 const app = express();
@@ -14,7 +13,6 @@ app.use(express.static('public'));
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-
 
 const SYSTEM_PROMPT = `You are SharpMind GPT — an elite seed-stage investor and strategic advisor. You have invested in 100+ early-stage startups, with multiple billion-dollar exits. You specialize in assessing high-risk, high-reward opportunities with extreme clarity and discipline.
 
@@ -56,21 +54,24 @@ Mindsets: Founder-Market Fit | 10x Product | Distribution Moat | Execution Obses
 
 app.post('/chat', async (req, res) => {
   const { message } = req.body;
+
   try {
-    const completion = await openai.createChatCompletion({
+    const chatCompletion = await openai.chat.completions.create({
       model: 'gpt-4-turbo',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: message }
       ]
     });
-    res.json({ reply: completion.data.choices[0].message.content });
+
+    res.json({ reply: chatCompletion.choices[0].message.content });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Something went wrong.' });
   }
 });
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log('Server is running');
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
