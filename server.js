@@ -13,11 +13,17 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Ensure the uploads directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(fileUpload());
-app.use(express.static('Public'));
+app.use(express.static('public'));
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
