@@ -2,10 +2,15 @@
 import express from 'express';
 import cors from 'cors';
 import fileUpload from 'express-fileupload';
-import { OpenAI } from 'openai';
+import { Configuration, OpenAIApi } from 'openai';
 import dotenv from 'dotenv';
 import path from 'path';
-import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// ES Module compatibility for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 dotenv.config();
 
 const app = express();
@@ -14,7 +19,9 @@ app.use(express.json());
 app.use(fileUpload());
 app.use(express.static('Public'));
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAIApi(new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+}));
 
 const SYSTEM_PROMPT = `You are SharpMind GPT — an elite seed-stage investor and strategic advisor. You have invested in 100+ early-stage startups, with multiple billion-dollar exits. You specialize in assessing high-risk, high-reward opportunities with extreme clarity and discipline.
 
@@ -57,14 +64,14 @@ Mindsets: Founder-Market Fit | 10x Product | Distribution Moat | Execution Obses
 app.post('/chat', async (req, res) => {
   const { message } = req.body;
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await openai.createChatCompletion({
       model: 'gpt-4-turbo',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: message }
       ]
     });
-    res.json({ reply: completion.choices[0].message.content });
+    res.json({ reply: completion.data.choices[0].message.content });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Something went wrong.' });
@@ -77,23 +84,24 @@ app.post('/upload', async (req, res) => {
   }
 
   const file = req.files.file;
-  const allowedTypes = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/csv'];
+  const allowedExtensions = ['.pdf', '.txt', '.docx', '.csv'];
+  const ext = path.extname(file.name).toLowerCase();
 
-  if (!allowedTypes.includes(file.mimetype)) {
-    return res.status(400).json({ error: 'Unsupported file type.' });
+  if (!allowedExtensions.includes(ext)) {
+    return res.status(400).json({ error: 'Dateiformat nicht unterstützt.' });
   }
 
-  const uploadPath = path.join(__dirname, 'uploads', file.name);
-  fs.mkdirSync(path.dirname(uploadPath), { recursive: true });
-
-  file.mv(uploadPath, (err) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'File upload failed.' });
-    }
+  try {
     console.log(`Uploaded file: ${file.name}`);
-    return res.json({ message: 'Erfolgreich hochgeladen.' });
-  });
+    res.json({ message: 'Erfolgreich hochgeladen.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Fehler beim Hochladen der Datei.' });
+  }
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(process.env.PORT || 3000, () => {
