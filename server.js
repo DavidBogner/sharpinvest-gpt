@@ -1,27 +1,27 @@
-// server.js
+
 import express from 'express';
 import cors from 'cors';
-import fileUpload from 'express-fileupload';
-import { Configuration, OpenAIApi } from 'openai';
 import dotenv from 'dotenv';
+import OpenAI from 'openai';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
-// ES Module compatibility for __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import fileUpload from 'express-fileupload';
+import fs from 'fs';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(fileUpload());
-app.use(express.static('Public'));
+app.use(express.static('public'));
 
-const openai = new OpenAIApi(new Configuration({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-}));
+});
 
 const SYSTEM_PROMPT = `You are SharpMind GPT — an elite seed-stage investor and strategic advisor. You have invested in 100+ early-stage startups, with multiple billion-dollar exits. You specialize in assessing high-risk, high-reward opportunities with extreme clarity and discipline.
 
@@ -64,14 +64,14 @@ Mindsets: Founder-Market Fit | 10x Product | Distribution Moat | Execution Obses
 app.post('/chat', async (req, res) => {
   const { message } = req.body;
   try {
-    const completion = await openai.createChatCompletion({
+    const completion = await openai.chat.completions.create({
       model: 'gpt-4-turbo',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: message }
       ]
     });
-    res.json({ reply: completion.data.choices[0].message.content });
+    res.json({ reply: completion.choices[0].message.content });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Something went wrong.' });
@@ -80,27 +80,24 @@ app.post('/chat', async (req, res) => {
 
 app.post('/upload', async (req, res) => {
   if (!req.files || !req.files.file) {
-    return res.status(400).json({ error: 'No file uploaded.' });
+    return res.status(400).json({ message: 'No file uploaded.' });
   }
 
-  const file = req.files.file;
+  const uploadedFile = req.files.file;
   const allowedExtensions = ['.pdf', '.txt', '.docx', '.csv'];
-  const ext = path.extname(file.name).toLowerCase();
+  const fileExt = path.extname(uploadedFile.name).toLowerCase();
 
-  if (!allowedExtensions.includes(ext)) {
-    return res.status(400).json({ error: 'Dateiformat nicht unterstützt.' });
+  if (!allowedExtensions.includes(fileExt)) {
+    return res.status(400).json({ message: 'Invalid file type.' });
   }
 
-  try {
-    console.log(`Uploaded file: ${file.name}`);
-    res.json({ message: 'Erfolgreich hochgeladen.' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Fehler beim Hochladen der Datei.' });
-  }
+  const uploadPath = path.join(__dirname, 'uploads', uploadedFile.name);
+  await uploadedFile.mv(uploadPath);
+  console.log('Uploaded file:', uploadedFile.name);
+  res.json({ message: 'Erfolgreich hochgeladen.' });
 });
 
-app.get('*', (req, res) => {
+app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
