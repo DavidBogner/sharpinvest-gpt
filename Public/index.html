@@ -2,27 +2,156 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Anna – Virtual Analyst</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lena – Virtual Analyst</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f7f9fb;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    header {
+      background: #1f2937;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+      font-size: 1.25rem;
+    }
+
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message {
+      margin-bottom: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      max-width: 80%;
+    }
+
+    .user {
+      align-self: flex-end;
+      background: #d1fae5;
+    }
+
+    .bot {
+      align-self: flex-start;
+      background: #e5e7eb;
+    }
+
+    #input-area {
+      display: flex;
+      padding: 1rem;
+      gap: 0.5rem;
+      background: #ffffff;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+
+    button {
+      padding: 0.75rem 1rem;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    label.upload-label {
+      padding: 0.75rem;
+      background: #e0e7ff;
+      color: #1e3a8a;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+  </style>
 </head>
 <body>
-  <h1>Welcome! My name is Anna.</h1>
-  <p>I’m the virtual analyst of Value Scale. How can I help you today?</p>
-  <textarea id="userInput" placeholder="Type your question..." rows="6" cols="60"></textarea><br/>
-  <button onclick="sendMessage()">Send</button>
-  <pre id="response" style="margin-top: 20px;"></pre>
+  <header>
+    🤖 Lena – Your Virtual Analyst
+  </header>
+  <main id="chat">
+    <div class="message bot">
+      Hello, I’m <strong>Lena</strong> – your virtual analyst. I can help you evaluate startup ideas and investment pitches. Just send me a message or upload a document to get started.
+    </div>
+  </main>
+  <div id="input-area">
+    <input type="text" id="user-input" placeholder="Ask Lena..." />
+    <button onclick="sendMessage()">Send</button>
+    <label class="upload-label" for="file-upload">Upload</label>
+    <input id="file-upload" type="file" onchange="uploadFile(event)" />
+  </div>
 
   <script>
+    const chat = document.getElementById('chat');
+
+    function addMessage(content, sender) {
+      const msg = document.createElement('div');
+      msg.className = `message ${sender}`;
+      msg.textContent = content;
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
     async function sendMessage() {
-      const message = document.getElementById("userInput").value;
-      const responseField = document.getElementById("response");
-      responseField.textContent = "Thinking...";
-      const res = await fetch("/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message })
-      });
-      const data = await res.json();
-      responseField.textContent = data.reply;
+      const input = document.getElementById('user-input');
+      const message = input.value.trim();
+      if (!message) return;
+      addMessage(message, 'user');
+      input.value = '';
+
+      try {
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+        const data = await response.json();
+        addMessage(data.reply, 'bot');
+      } catch (err) {
+        addMessage('Sorry, something went wrong.', 'bot');
+      }
+    }
+
+    async function uploadFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+
+      addMessage(`📎 Uploading file: ${file.name}`, 'user');
+
+      try {
+        const res = await fetch('/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        document.getElementById('user-input').value = data.content.slice(0, 1000);
+        sendMessage();
+      } catch (err) {
+        addMessage('Error uploading file.', 'bot');
+      }
     }
   </script>
 </body>
