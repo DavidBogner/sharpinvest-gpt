@@ -1,7 +1,7 @@
 {
   "name": "sharpinvest-gpt",
   "version": "1.0.0",
-  "description": "Personal GPT Assistant for Value Scale",
+  "description": "AI Analyst with file upload",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -11,6 +11,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
-    "openai": "^4.19.0"
+    "express-fileupload": "^1.4.0",
+    "openai": "^4.0.0"
   }
 }
