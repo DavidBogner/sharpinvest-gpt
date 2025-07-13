@@ -4,13 +4,15 @@ import cors from 'cors';
 import fileUpload from 'express-fileupload';
 import { OpenAI } from 'openai';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('Public'));
 app.use(fileUpload());
+app.use(express.static('public'));
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -69,22 +71,29 @@ app.post('/chat', async (req, res) => {
   }
 });
 
-app.post('/upload', (req, res) => {
+app.post('/upload', async (req, res) => {
   if (!req.files || !req.files.file) {
     return res.status(400).json({ error: 'No file uploaded.' });
   }
 
   const file = req.files.file;
-  const allowedExtensions = ['.pdf', '.txt', '.docx', '.csv'];
-  const ext = file.name.slice(((file.name.lastIndexOf('.') - 1) >>> 0) + 2);
+  const allowedTypes = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/csv'];
 
-  if (!allowedExtensions.includes(`.${ext}`)) {
+  if (!allowedTypes.includes(file.mimetype)) {
     return res.status(400).json({ error: 'Unsupported file type.' });
   }
 
-  // Temporäre Bestätigung – Datei wird nicht gespeichert
-  console.log(`Uploaded file: ${file.name}`);
-  res.json({ message: 'Erfolgreich hochgeladen.' });
+  const uploadPath = path.join(__dirname, 'uploads', file.name);
+  fs.mkdirSync(path.dirname(uploadPath), { recursive: true });
+
+  file.mv(uploadPath, (err) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: 'File upload failed.' });
+    }
+    console.log(`Uploaded file: ${file.name}`);
+    return res.json({ message: 'Erfolgreich hochgeladen.' });
+  });
 });
 
 app.listen(process.env.PORT || 3000, () => {
