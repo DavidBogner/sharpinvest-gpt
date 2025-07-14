@@ -7,7 +7,7 @@ import path from 'path';
 import { OpenAI } from 'openai';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import pdfParse from 'pdf-parse';
+import pdfParse from 'pdf-parse-fixed';
 import mammoth from 'mammoth';
 import csvParser from 'csv-parser';
 
