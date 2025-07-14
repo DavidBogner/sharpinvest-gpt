@@ -15,7 +15,7 @@ const __dirname = path.resolve();
 
 app.use(cors());
 app.use(fileUpload());
-app.use(express.static('public'));
+app.use(express.static('Public'));
 app.use(express.json());
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
