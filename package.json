@@ -1,7 +1,7 @@
 {
   "name": "sharpinvest-gpt",
   "version": "1.0.0",
-  "description": "AI Analyst with file upload",
+  "description": "Lena – der AI Analyst von Value Scale",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -9,9 +9,12 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "csv-parser": "^3.0.0",
+    "docx-parser": "^2.2.3",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "express-fileupload": "^1.4.0",
-    "openai": "^4.0.0"
+    "openai": "^4.0.0",
+    "pdf-parse": "^1.1.1"
   }
 }
