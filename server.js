@@ -7,9 +7,10 @@ import path from 'path';
 import { OpenAI } from 'openai';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import pdfParse from 'pdf-parse-fixed';
+const pdfParse = pkg.default || pkg;
 import mammoth from 'mammoth';
 import csvParser from 'csv-parser';
+import pkg from 'pdf-parse';
 
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
