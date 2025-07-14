@@ -1,87 +1,21 @@
-
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Lena – AI Analyst</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      background-color: #f7f9fc;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-
-    header {
-      background-color: #2c3e50;
-      color: white;
-      padding: 1rem;
-      text-align: center;
-    }
-
-    #chat-box {
-      flex: 1;
-      padding: 1rem;
-      overflow-y: auto;
-    }
-
-    .message {
-      margin: 0.5rem 0;
-      padding: 0.5rem;
-      background-color: #ecf0f1;
-      border-radius: 5px;
-    }
-
-    form {
-      display: flex;
-      flex-direction: column;
-      padding: 1rem;
-      background-color: #fff;
-      border-top: 1px solid #ccc;
-    }
-
-    input[type="text"] {
-      padding: 0.5rem;
-      font-size: 1rem;
-      margin-bottom: 0.5rem;
-    }
-
-    input[type="file"] {
-      margin-bottom: 0.5rem;
-    }
-
-    button {
-      padding: 0.5rem;
-      font-size: 1rem;
-      background-color: #3498db;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background-color: #2980b9;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Lena - AI Analyst</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <h1>👩‍💼 Lena – AI Analystin</h1>
-    <p>Stelle deine Fragen oder lade ein Dokument hoch</p>
-  </header>
-
-  <div id="chat-box"></div>
-
-  <form id="chat-form">
-    <input type="text" id="user-input" placeholder="Deine Nachricht..." autocomplete="off" />
-    <input type="file" id="fileUpload" accept=".pdf,.txt,.docx,.csv" />
-    <button type="submit">Senden</button>
-  </form>
-
-  <script src="script.js"></script>
+    <div id="chat-container">
+        <h1>Lena – Your AI Analyst</h1>
+        <div id="chat-window"></div>
+        <input type="text" id="user-input" placeholder="Ask Lena something..." />
+        <button onclick="sendMessage()">Send</button>
+        <form id="upload-form" enctype="multipart/form-data">
+            <input type="file" id="file-upload" accept=".pdf,.docx,.txt,.csv" />
+            <button type="submit">Upload Document</button>
+        </form>
+    </div>
+    <script src="script.js"></script>
 </body>
 </html>
