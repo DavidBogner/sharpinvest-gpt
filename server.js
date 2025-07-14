@@ -5,7 +5,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { OpenAI } from "openai";
 import dotenv from "dotenv";
-import pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 import mammoth from "mammoth";
 import { parse } from "csv-parse/sync";
 
