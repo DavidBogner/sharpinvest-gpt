@@ -1,94 +1,104 @@
+from pathlib import Path
 
-import express from 'express';
-import cors from 'cors';
-import fileUpload from 'express-fileupload';
-import fs from 'fs';
-import path from 'path';
-import { OpenAI } from 'openai';
-import pdf from 'pdf-parse';
-import mammoth from 'mammoth';
-import { parse } from 'csv-parse/sync';
-import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
+server_js_code = '''
+import express from "express";
+import fileUpload from "express-fileupload";
+import fs from "fs";
+import path from "path";
+import pdfParse from "pdf-parse";
+import mammoth from "mammoth";
+import { parse } from "csv-parse/sync";
+import { OpenAI } from "openai";
+import dotenv from "dotenv";
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
+const port = process.env.PORT || 3000;
+const __dirname = path.resolve();
+
+app.use(express.static("Public"));
 app.use(fileUpload());
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-let uploadedContent = '';
+let uploadedContent = "";
 
-app.post('/upload', async (req, res) => {
+app.post("/upload", async (req, res) => {
   if (!req.files || !req.files.file) {
-    return res.status(400).send('No file uploaded.');
+    return res.status(400).send("No file uploaded.");
   }
 
   const file = req.files.file;
-  const uploadPath = path.join(__dirname, 'uploads', file.name);
+  const uploadPath = path.join(__dirname, "uploads", file.name);
 
   try {
     await file.mv(uploadPath);
-    console.log('Uploaded file:', file.name);
 
-    const ext = path.extname(file.name).toLowerCase();
-    const data = fs.readFileSync(uploadPath);
+    const mimetype = file.mimetype;
+    let content = "";
 
-    if (ext === '.pdf') {
-      uploadedContent = (await pdf(data)).text;
-    } else if (ext === '.docx') {
-      uploadedContent = (await mammoth.extractRawText({ buffer: data })).value;
-    } else if (ext === '.txt') {
-      uploadedContent = data.toString();
-    } else if (ext === '.csv') {
-      uploadedContent = parse(data, { columns: true }).map(row => JSON.stringify(row)).join('\n');
+    if (mimetype === "application/pdf") {
+      const dataBuffer = fs.readFileSync(uploadPath);
+      const data = await pdfParse(dataBuffer);
+      content = data.text;
+    } else if (
+      mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ) {
+      const result = await mammoth.extractRawText({ path: uploadPath });
+      content = result.value;
+    } else if (mimetype === "text/plain") {
+      content = fs.readFileSync(uploadPath, "utf8");
+    } else if (mimetype === "text/csv") {
+      const csvText = fs.readFileSync(uploadPath, "utf8");
+      const records = parse(csvText, { columns: true });
+      content = JSON.stringify(records, null, 2);
     } else {
-      uploadedContent = '';
+      return res.status(400).send("Unsupported file type.");
     }
 
-    res.json({ message: 'File successfully uploaded and analyzed.' });
+    uploadedContent = content;
+    res.send("Datei erfolgreich hochgeladen.");
   } catch (err) {
     console.error(err);
-    res.status(500).send('Error processing file.');
+    res.status(500).send("Fehler beim Hochladen oder Verarbeiten der Datei.");
   }
 });
 
-app.post('/chat', async (req, res) => {
-  const { message } = req.body;
+app.post("/chat", express.json(), async (req, res) => {
+  const userMessage = req.body.message;
+
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+    const chatCompletion = await openai.chat.completions.create({
       messages: [
         {
-          role: 'system',
-          content: "You are Lena, a highly intelligent and analytical AI. You help users assess startup pitches, analyze documents, and provide strategic insights. You will receive uploaded documents and answer user questions based on them. Be helpful, professional, and concise."
+          role: "system",
+          content:
+            "You are Lena, a sharp-minded AI startup analyst. You are helpful, strategic, and know how to turn complex documents into valuable insights.",
         },
         {
-          role: 'user',
-          content: "The uploaded document content is: " + uploadedContent
+          role: "user",
+          content: `Uploaded Content: ${uploadedContent}\\n\\nUser Question: ${userMessage}`,
         },
-        {
-          role: 'user',
-          content: message
-        }
-      ]
+      ],
+      model: "gpt-4",
     });
-    res.json({ reply: completion.choices[0].message.content });
+
+    const response = chatCompletion.choices[0].message.content;
+    res.send({ reply: response });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Something went wrong.' });
+    res.status(500).send({ reply: "Fehler bei der Anfrage an OpenAI." });
   }
 });
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log('Server is running');
+app.listen(port, () => {
+  console.log(`Server läuft auf Port ${port}`);
 });
+'''
+
+path = Path("/mnt/data/server.js")
+path.write_text(server_js_code.strip(), encoding="utf-8")
+path
