@@ -1,16 +1,19 @@
-# Korrigierte Version mit korrekten Zeilenumbrüchen und Escape-Zeichen
-corrected_server_js = """
+
 import express from 'express';
 import fileUpload from 'express-fileupload';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { OpenAI } from 'openai';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
-import { parse } from 'csv-parse/sync';
-import dotenv from 'dotenv';
+import csvParser from 'csv-parser';
+
 dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
@@ -20,130 +23,73 @@ app.use(express.static('public'));
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-let lastUploadedContent = ''; // Zwischenspeicherung des Inhalts
-
-async function extractText(filePath, mimetype) {
-  const data = fs.readFileSync(filePath);
-
-  if (mimetype === 'application/pdf') {
-    const pdfData = await pdfParse(data);
-    return pdfData.text;
-  }
-
-  if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-    const result = await mammoth.extractRawText({ buffer: data });
-    return result.value;
-  }
-
-  if (mimetype === 'text/plain') {
-    return data.toString();
-  }
-
-  if (mimetype === 'text/csv') {
-    const parsed = parse(data, { columns: false });
-    return parsed.map(row => row.join(',')).join('\\n');
-  }
-
-  return 'Dateiformat nicht unterstützt.';
-}
+let uploadedContent = '';
 
 app.post('/upload', async (req, res) => {
+  if (!req.files || !req.files.file) {
+    return res.status(400).send('No file uploaded.');
+  }
+
+  const file = req.files.file;
+  const uploadPath = path.join(__dirname, 'uploads', file.name);
+
   try {
-    if (!req.files || !req.files.file) {
-      return res.status(400).send('Keine Datei hochgeladen.');
+    await file.mv(uploadPath);
+    let content = '';
+
+    if (file.name.endsWith('.pdf')) {
+      const data = await pdfParse(fs.readFileSync(uploadPath));
+      content = data.text;
+    } else if (file.name.endsWith('.txt')) {
+      content = fs.readFileSync(uploadPath, 'utf8');
+    } else if (file.name.endsWith('.docx')) {
+      const result = await mammoth.extractRawText({ path: uploadPath });
+      content = result.value;
+    } else if (file.name.endsWith('.csv')) {
+      content = '';
+      const rows = [];
+      fs.createReadStream(uploadPath)
+        .pipe(csvParser())
+        .on('data', row => rows.push(row))
+        .on('end', () => {
+          content = JSON.stringify(rows);
+          uploadedContent = content;
+          res.send('Erfolgreich hochgeladen');
+        });
+      return;
     }
 
-    const uploadedFile = req.files.file;
-    const allowedTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain',
-      'text/csv'
-    ];
-
-    if (!allowedTypes.includes(uploadedFile.mimetype)) {
-      return res.status(400).send('Nicht unterstütztes Dateiformat.');
-    }
-
-    const uploadPath = path.join('uploads', uploadedFile.name);
-    await uploadedFile.mv(uploadPath);
-
-    const extractedText = await extractText(uploadPath, uploadedFile.mimetype);
-    lastUploadedContent = extractedText;
-
-    res.send('Datei erfolgreich hochgeladen.');
-    console.log('Uploaded file:', uploadedFile.name);
+    uploadedContent = content;
+    res.send('Erfolgreich hochgeladen');
   } catch (err) {
     console.error(err);
-    res.status(500).send('Fehler beim Hochladen der Datei.');
+    res.status(500).send('Fehler beim Verarbeiten der Datei.');
   }
 });
-
-const SYSTEM_PROMPT = `You are SharpMind GPT — an elite seed-stage investor and strategic advisor. You have invested in 100+ early-stage startups, with multiple billion-dollar exits. You specialize in assessing high-risk, high-reward opportunities with extreme clarity and discipline.
-
-Your mission is to ruthlessly assess startup pitches from the lens of a Seed investor. You identify critical strengths and weaknesses early, expose hidden risks, flawed assumptions, and missing fundamentals, and decide if you would invest, pass, or request more diligence. You list open questions for the founding team to be answered before a final investment decision.
-
-For each pitch analysis, structure your response as follows:
-
-Hard Truth:
-Start with the fundamental problem, risk, or advantage — no softening.
-
-Deconstruct the Pitch:
-- Team: Are these founders uniquely qualified and coachable?
-- Market: Is the market huge ($1B+), growing, and reachable?
-- Product: Is this a 10x solution solving a painful, valuable problem?
-- Traction: Is there credible early validation from the market?
-- Business Model: Is it scalable, with attractive unit economics?
-- Defensibility: Is there a moat, or can competitors easily overtake them?
-- Execution Risk: What could derail this company within 12-24 months?
-
-Open Questions for the Founders:
-List critical unknowns that must be clarified to reduce risk or build conviction.
-
-Investment Decision:
-Clearly state:
-- ✅ YES (and why)
-- ❌ NO (and why)
-- ⚡ CONDITIONAL (what must change or be proven)
-
-Strategic Advice:
-If invested, advise what the founders must prioritize immediately.
-
-Challenge to the Founders:
-End with a single, powerful question or directive the founders must answer to deserve your investment.
-
-You maintain extremely high standards: exceptional founders, massive market, must-have product, unfair distribution advantages, and a path to 10x+ returns within 7-10 years.
-
-Tone: Blunt, strategic, non-apologetic.
-Mindsets: Founder-Market Fit | 10x Product | Distribution Moat | Execution Obsessed | Ruthless Prioritization.`;
 
 app.post('/chat', async (req, res) => {
   const { message } = req.body;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const chatCompletion = await openai.chat.completions.create({
       model: 'gpt-4-turbo',
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `Hier ist ein hochgeladenes Dokument:\\n\\n${lastUploadedContent}\\n\\nFrage: ${message}` }
+        {
+          role: 'system',
+          content: `You are Lena, a strategic AI analyst. Always consider this document context when responding:
+${uploadedContent}`
+        },
+        { role: 'user', content: message }
       ]
     });
 
-    res.json({ reply: completion.choices[0].message.content });
+    res.json({ reply: chatCompletion.choices[0].message.content });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Fehler bei der Chat-Antwort.' });
+    res.status(500).send('Fehler bei der Anfrage an OpenAI.');
   }
 });
 
 app.listen(process.env.PORT || 3000, () => {
-  console.log('Server is running');
+  console.log('Server läuft auf Port 3000');
 });
-"""
-
-# Speichern
-corrected_output_path = "/mnt/data/server.js"
-with open(corrected_output_path, "w", encoding="utf-8") as f:
-    f.write(corrected_server_js)
-
-corrected_output_path
