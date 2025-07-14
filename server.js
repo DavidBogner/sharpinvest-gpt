@@ -1,75 +1,98 @@
-
 import express from 'express';
 import fileUpload from 'express-fileupload';
-import cors from 'cors';
-import fs from 'fs';
 import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import pdfParse from 'pdf-parse';
+import mammoth from 'mammoth';
+import { parse as csvParse } from 'csv-parse/sync';
 import { OpenAI } from 'openai';
-import dotenv from 'dotenv';
-dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3000;
-const __dirname = path.resolve();
+const PORT = process.env.PORT || 3000;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const uploadsDir = path.join(__dirname, 'uploads');
+const sessions = {};
 
-app.use(cors());
-app.use(fileUpload());
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+
 app.use(express.static('Public'));
 app.use(express.json());
+app.use(fileUpload());
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Initialisiere OpenAI Client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
+// Dateiupload + automatische Analyse
 app.post('/upload', async (req, res) => {
-    if (!req.files || !req.files.file) {
-        return res.status(400).send('No file uploaded.');
-    }
+  try {
+    const file = req.files?.file;
+    const sessionId = req.body.sessionId;
+    if (!file || !sessionId) return res.status(400).send('No file or sessionId provided.');
 
-    const file = req.files.file;
-    const uploadPath = path.join(__dirname, 'uploads', file.name);
+    const filePath = path.join(uploadsDir, file.name);
+    await file.mv(filePath);
 
-    await fs.promises.mkdir(path.dirname(uploadPath), { recursive: true });
-    await file.mv(uploadPath);
+    let content = '';
+    const ext = path.extname(file.name).toLowerCase();
 
-    let textContent = '';
-    if (file.name.endsWith('.pdf')) {
-        const dataBuffer = await fs.promises.readFile(uploadPath);
-        const data = await pdfParse(dataBuffer);
-        textContent = data.text;
-    } else if (file.name.endsWith('.txt')) {
-        textContent = await fs.promises.readFile(uploadPath, 'utf-8');
+    if (ext === '.pdf') {
+      const dataBuffer = fs.readFileSync(filePath);
+      const parsed = await pdfParse(dataBuffer);
+      content = parsed.text;
+    } else if (ext === '.docx') {
+      const result = await mammoth.extractRawText({ path: filePath });
+      content = result.value;
+    } else if (ext === '.txt') {
+      content = fs.readFileSync(filePath, 'utf8');
+    } else if (ext === '.csv') {
+      const csvText = fs.readFileSync(filePath, 'utf8');
+      const records = csvParse(csvText, { columns: true });
+      content = JSON.stringify(records, null, 2);
     } else {
-        textContent = 'Dateiformat wird aktuell nicht unterstützt.';
+      return res.status(400).send('Unsupported file type.');
     }
 
-    req.session = { documentContent: textContent };
-    res.send('Datei erfolgreich hochgeladen.');
+    sessions[sessionId] = { fileContent: content };
+
+    res.json({ message: 'Upload erfolgreich und analysiert.' });
+  } catch (err) {
+    console.error('Upload/Parsing Fehler:', err);
+    res.status(500).send('Fehler beim Hochladen oder Analysieren.');
+  }
 });
 
-app.post('/ask', async (req, res) => {
-    const question = req.body.question;
-    const documentContent = req.session?.documentContent || '';
+// Chatfrage an GPT
+app.post('/chat', async (req, res) => {
+  try {
+    const { message, sessionId } = req.body;
+    if (!message || !sessionId) return res.status(400).send('Missing message or sessionId');
 
-    if (!question) return res.status(400).send('Frage fehlt.');
-    if (!documentContent) return res.status(400).send('Kein Dokumentinhalt vorhanden.');
+    const session = sessions[sessionId];
+    const systemPrompt = session?.fileContent
+      ? `Du bist eine freundliche KI-Analystin namens Lena. Analysiere die hochgeladene Datei mit folgendem Inhalt:\n\n${session.fileContent}`
+      : `Du bist Lena, eine hilfreiche KI-Analystin.`;
 
-    try {
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4',
-            messages: [
-                { role: 'system', content: 'Du bist eine hilfreiche Analystin.' },
-                { role: 'user', content: `Dokumentinhalt: ${documentContent}
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message }
+      ]
+    });
 
-Frage: ${question}` },
-            ],
-        });
-        res.json({ answer: completion.choices[0].message.content });
-    } catch (error) {
-        console.error(error);
-        res.status(500).send('Fehler beim Abrufen der Antwort.');
-    }
+    const reply = response.choices[0].message.content;
+    res.json({ reply });
+  } catch (err) {
+    console.error('Chat Fehler:', err);
+    res.status(500).send('Fehler beim Generieren der Antwort.');
+  }
 });
 
-app.listen(port, () => {
-    console.log(`Server läuft auf http://localhost:${port}`);
+app.listen(PORT, () => {
+  console.log(`Server läuft auf http://localhost:${PORT}`);
 });
