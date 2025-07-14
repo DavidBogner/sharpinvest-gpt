@@ -1,28 +1,30 @@
 
 import express from 'express';
-import fileUpload from 'express-fileupload';
 import cors from 'cors';
+import fileUpload from 'express-fileupload';
 import fs from 'fs';
 import path from 'path';
 import { OpenAI } from 'openai';
+import pdf from 'pdf-parse';
+import mammoth from 'mammoth';
+import { parse } from 'csv-parse/sync';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-const pdfParse = pkg.default || pkg;
-import mammoth from 'mammoth';
-import csvParser from 'csv-parser';
-import pkg from 'pdf-parse';
 
 dotenv.config();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(fileUpload());
 app.use(express.static('public'));
+app.use(fileUpload());
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 let uploadedContent = '';
 
@@ -36,61 +38,57 @@ app.post('/upload', async (req, res) => {
 
   try {
     await file.mv(uploadPath);
-    let content = '';
+    console.log('Uploaded file:', file.name);
 
-    if (file.name.endsWith('.pdf')) {
-      const data = await pdfParse(fs.readFileSync(uploadPath));
-      content = data.text;
-    } else if (file.name.endsWith('.txt')) {
-      content = fs.readFileSync(uploadPath, 'utf8');
-    } else if (file.name.endsWith('.docx')) {
-      const result = await mammoth.extractRawText({ path: uploadPath });
-      content = result.value;
-    } else if (file.name.endsWith('.csv')) {
-      content = '';
-      const rows = [];
-      fs.createReadStream(uploadPath)
-        .pipe(csvParser())
-        .on('data', row => rows.push(row))
-        .on('end', () => {
-          content = JSON.stringify(rows);
-          uploadedContent = content;
-          res.send('Erfolgreich hochgeladen');
-        });
-      return;
+    const ext = path.extname(file.name).toLowerCase();
+    const data = fs.readFileSync(uploadPath);
+
+    if (ext === '.pdf') {
+      uploadedContent = (await pdf(data)).text;
+    } else if (ext === '.docx') {
+      uploadedContent = (await mammoth.extractRawText({ buffer: data })).value;
+    } else if (ext === '.txt') {
+      uploadedContent = data.toString();
+    } else if (ext === '.csv') {
+      uploadedContent = parse(data, { columns: true }).map(row => JSON.stringify(row)).join('\n');
+    } else {
+      uploadedContent = '';
     }
 
-    uploadedContent = content;
-    res.send('Erfolgreich hochgeladen');
+    res.json({ message: 'File successfully uploaded and analyzed.' });
   } catch (err) {
     console.error(err);
-    res.status(500).send('Fehler beim Verarbeiten der Datei.');
+    res.status(500).send('Error processing file.');
   }
 });
 
 app.post('/chat', async (req, res) => {
   const { message } = req.body;
-
   try {
-    const chatCompletion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4',
       messages: [
         {
           role: 'system',
-          content: `You are Lena, a strategic AI analyst. Always consider this document context when responding:
-${uploadedContent}`
+          content: "You are Lena, a highly intelligent and analytical AI. You help users assess startup pitches, analyze documents, and provide strategic insights. You will receive uploaded documents and answer user questions based on them. Be helpful, professional, and concise."
         },
-        { role: 'user', content: message }
+        {
+          role: 'user',
+          content: "The uploaded document content is: " + uploadedContent
+        },
+        {
+          role: 'user',
+          content: message
+        }
       ]
     });
-
-    res.json({ reply: chatCompletion.choices[0].message.content });
+    res.json({ reply: completion.choices[0].message.content });
   } catch (err) {
     console.error(err);
-    res.status(500).send('Fehler bei der Anfrage an OpenAI.');
+    res.status(500).json({ error: 'Something went wrong.' });
   }
 });
 
 app.listen(process.env.PORT || 3000, () => {
-  console.log('Server läuft auf Port 3000');
+  console.log('Server is running');
 });
