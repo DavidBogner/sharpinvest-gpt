@@ -9,7 +9,6 @@ import { fileURLToPath } from 'url';
 import cors from 'cors';
 import mammoth from 'mammoth';
 import { parse } from 'csv-parse';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
 
