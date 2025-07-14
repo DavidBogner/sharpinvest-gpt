@@ -1,5 +1,3 @@
-from pathlib import Path
-
 server_js_code = """
 import express from 'express';
 import fileUpload from 'express-fileupload';
